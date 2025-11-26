@@ -48,7 +48,7 @@ const Chat: React.FC<ChatProps> = ({ username }) => {
   };
 
   return (
-    <div className="flex flex-col gap-4 w-full h-full bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 border border-gray-200 dark:border-gray-700">
+    <div className="min-h-screen flex flex-col gap-4 w-full h-full bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 border border-gray-200 dark:border-gray-700">
       <h2 className="text-xl font-bold text-center mb-2 bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">Chat</h2>
       <div className="flex-1 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3 text-sm overflow-y-auto flex flex-col gap-3">
         {messages.length === 0 ? (
@@ -93,12 +93,12 @@ const Chat: React.FC<ChatProps> = ({ username }) => {
         className="flex flex-col gap-2 w-full"
       >
         <input
-          className="w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+          className="w-full h-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
           placeholder="Escribe tu mensaje..."
           value={messageDraft}
           onChange={event => setMessageDraft(event.target.value)}
         />
-        <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded transition-colors">Enviar</button>
+        <button type="submit" className="w-50 md:w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded transition-colors">Enviar</button>
       </form>
     </div>
   );

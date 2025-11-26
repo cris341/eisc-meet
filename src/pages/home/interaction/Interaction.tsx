@@ -19,12 +19,13 @@ export default function Interaction() {
   }, [isVideoEnabled]);
 
   return (
-    <div className="flex gap-4 items-center justify-center h-full">
+    <div className="flex gap-4 items-center justify-center ">
       {/* Audio Button */}
+      
       <button
         onClick={handleToggleAudio}
         className={`
-          w-14 h-14 rounded-full flex items-center justify-center transition-all transform hover:scale-110 active:scale-95 shadow-lg
+         w-14 h-14 m-2 rounded-full flex items-center justify-center transition-all transform hover:scale-110 active:scale-95 shadow-lg
           ${isAudioEnabled 
             ? "bg-gray-700 hover:bg-gray-600 text-white" 
             : "bg-red-500 hover:bg-red-600 text-white"
@@ -43,7 +44,7 @@ export default function Interaction() {
       <button
         onClick={handleToggleVideo}
         className={`
-          w-14 h-14 rounded-full flex items-center justify-center transition-all transform hover:scale-110 active:scale-95 shadow-lg
+          w-14 h-14 m-2 rounded-full flex items-center justify-center transition-all transform hover:scale-110 active:scale-95 shadow-lg
           ${isVideoEnabled 
             ? "bg-gray-700 hover:bg-gray-600 text-white" 
             : "bg-red-500 hover:bg-red-600 text-white"

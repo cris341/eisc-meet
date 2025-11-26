@@ -77,7 +77,7 @@ function handleIntroduction(peersObj) {
   Object.entries(peersObj).forEach(([theirId, peerData]) => {
     if (theirId !== socket.id) {
       peers[theirId] = { peerConnection: createPeerConnection(theirId, true) };
-      createClientMediaElements(theirId, peerData.username);
+      createClientMediaElements(theirId, peerData.username, peerData.isVideoEnabled);
     }
   });
 }
@@ -241,7 +241,7 @@ export function toggleVideo(isEnabled) {
  * @function createClientMediaElements
  * @param {string} _id - The ID of the client.
  */
-function createClientMediaElements(_id, username) {
+function createClientMediaElements(_id, username, isVideoEnabled = false) {
   const container = getVideoContainer();
   if (!container) return;
 
@@ -254,6 +254,7 @@ function createClientMediaElements(_id, username) {
   card.style.overflow = "hidden";
   card.style.backgroundColor = "#2d2d2d";
   card.style.border = "2px solid #6b21a8"; // Purple border
+  card.style.minHeight = "200px";
 
   const videoEl = document.createElement("video");
   videoEl.id = `${_id}_video`;
@@ -271,18 +272,15 @@ function createClientMediaElements(_id, username) {
   placeholder.style.left = "0";
   placeholder.style.width = "100%";
   placeholder.style.height = "100%";
-  placeholder.style.display = "none"; // Hidden by default until we know status? 
-  // Actually, default is video ON usually, but if they join muted... 
-  // For now assume ON, but if they toggle we switch.
-  // If we want to support "join muted", we need that info in payload.
-  // Let's assume ON for remote for now, or listen to event.
-  placeholder.style.display = "flex"; // Assume off initially? No, usually on.
-  // Wait, if I join and they are already muted, I won't know unless they send state.
-  // For this iteration, let's assume they are ON, unless we get a toggle.
-  // But the user said "al momento de ingresar... desactivado".
-  // So everyone joins deactivated. So default should be placeholder visible.
-  placeholder.style.display = "flex"; 
-  videoEl.style.display = "none";
+  
+  // Set initial state based on isVideoEnabled
+  if (isVideoEnabled) {
+    placeholder.style.display = "none";
+    videoEl.style.display = "block";
+  } else {
+    placeholder.style.display = "flex";
+    videoEl.style.display = "none";
+  }
 
   placeholder.style.flexDirection = "column";
   placeholder.style.justifyContent = "center";
@@ -358,6 +356,7 @@ function createLocalVideo(stream, username) {
   card.style.overflow = "hidden";
   card.style.backgroundColor = "#2d2d2d";
   card.style.border = "2px solid #22c55e"; // Green border
+  card.style.minHeight = "200px";
 
   const videoEl = document.createElement("video");
   videoEl.id = "local_video";

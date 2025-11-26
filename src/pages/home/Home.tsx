@@ -56,7 +56,7 @@ const Home: React.FC = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900 overflow-hidden">
+    <div className=" flex flex-col bg-gray-100 dark:bg-gray-900 overflow-hidden">
       {/* Header / Nav could go here */}
       
       <div className="flex-1 flex flex-col lg:flex-row p-4 gap-4 overflow-hidden">
@@ -72,14 +72,14 @@ const Home: React.FC = () => {
             {/* Videos will be injected here by webrtc.js */}
           </div>
           
-          {/* Controls Bar */}
-          <div className="h-20 bg-white dark:bg-gray-800 rounded-xl shadow-lg flex items-center justify-center px-8 border border-gray-200 dark:border-gray-700 shrink-0">
+          {/* Controls Bar */}0
+          <div className=" h-20  bg-white dark:bg-gray-800 rounded-xl shadow-lg md:flex items-center justify-center  border border-gray-200 dark:border-gray-70 ">
             <Interaction />
           </div>
         </div>
 
         {/* Chat Sidebar */}
-        <div className="w-full lg:w-96 h-[40vh] lg:h-full shrink-0">
+        <div className=" w-full lg:w-96  lg:h-full shrink-0">
            <Chat username={username} />
         </div>
       </div>
