@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+// @ts-ignore
 import { initWebRTC } from "../../../webrtc/webrtc.js";
 /**
  * Component for controlling voice input/output.
