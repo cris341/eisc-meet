@@ -164,6 +164,7 @@ function createPeerConnection(theirSocketId, isInitiator = false) {
 
   const peerConnection = new Peer({
     initiator: isInitiator,
+    stream: localMediaStream,      // <-- aquí
     config: {
       iceServers,
     },
@@ -172,9 +173,10 @@ function createPeerConnection(theirSocketId, isInitiator = false) {
   peerConnection.on("signal", (data) =>
     socket.emit("signal", theirSocketId, socket.id, data)
   );
-  peerConnection.on("connect", () =>
-    peerConnection.addStream(localMediaStream)
-  );
+
+  // ya no necesitamos addStream en 'connect'
+  // peerConnection.on("connect", () => peerConnection.addStream(localMediaStream));
+
   peerConnection.on("stream", (stream) =>
     updateClientMediaElements(theirSocketId, stream)
   );
