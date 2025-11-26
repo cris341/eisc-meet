@@ -16,15 +16,18 @@ let localMediaStream = null;
  * @async
  * @function init
  */
-export const initWebRTC = async () => {
-
+export const initWebRTC = async (username) => {
   if (Peer.WEBRTC_SUPPORT) {
     try {
       localMediaStream = await getMedia();
       console.log("Local media stream obtained.");
-      console.log(localMediaStream);
-      createLocalVideo(localMediaStream);
-      initSocketConnection();
+      
+      // Start with tracks disabled as per requirement
+      localMediaStream.getAudioTracks().forEach(track => track.enabled = false);
+      localMediaStream.getVideoTracks().forEach(track => track.enabled = false);
+      
+      createLocalVideo(localMediaStream, username);
+      initSocketConnection(username);
     } catch (error) {
       console.error("Failed to initialize WebRTC connection:", error);
     }
@@ -52,36 +55,52 @@ async function getMedia() {
  * Initializes the socket connection and sets up event listeners.
  * @function initSocketConnection
  */
-function initSocketConnection() {
+function initSocketConnection(username) {
   socket = io(serverWebRTCUrl);
+
+  socket.on("connect", () => {
+    socket.emit("register", username);
+  });
 
   socket.on("introduction", handleIntroduction);
   socket.on("newUserConnected", handleNewUserConnected);
   socket.on("userDisconnected", handleUserDisconnected);
   socket.on("signal", handleSignal);
+  socket.on("user-toggled-video", handleUserToggledVideo);
 }
 
 /**
  * Handles the introduction event.
  * @param {Array<string>} otherClientIds - Array of other client IDs.
  */
-function handleIntroduction(otherClientIds) {
-  otherClientIds.forEach((theirId) => {
+function handleIntroduction(peersObj) {
+  Object.entries(peersObj).forEach(([theirId, peerData]) => {
     if (theirId !== socket.id) {
       peers[theirId] = { peerConnection: createPeerConnection(theirId, true) };
-      createClientMediaElements(theirId);
+      createClientMediaElements(theirId, peerData.username);
     }
   });
 }
 
-/**
- * Handles the new user connected event.
- * @param {string} theirId - The ID of the newly connected user.
- */
-function handleNewUserConnected(theirId) {
+function handleNewUserConnected(payload) {
+  // payload can be just ID (old) or object {id, username} (new)
+  const theirId = payload.id || payload;
+  const username = payload.username || "Usuario";
+
+  console.log("New user connected:", theirId, username);
   if (theirId !== socket.id && !(theirId in peers)) {
     peers[theirId] = {};
-    createClientMediaElements(theirId);
+    createClientMediaElements(theirId, username);
+  }
+}
+
+function handleUserToggledVideo({ id, isEnabled }) {
+  const videoEl = document.getElementById(`${id}_video`);
+  const placeholderEl = document.getElementById(`${id}_placeholder`);
+  
+  if (videoEl && placeholderEl) {
+    videoEl.style.display = isEnabled ? "block" : "none";
+    placeholderEl.style.display = isEnabled ? "none" : "flex";
   }
 }
 
@@ -188,20 +207,33 @@ function createPeerConnection(theirSocketId, isInitiator = false) {
  * Disables the outgoing media stream.
  * @function disableOutgoingStream
  */
-export function disableOutgoingStream() {
-  localMediaStream.getTracks().forEach((track) => {
-    track.enabled = false;
-  });
+export function toggleAudio(isEnabled) {
+  if (localMediaStream) {
+    localMediaStream.getAudioTracks().forEach((track) => {
+      track.enabled = isEnabled;
+    });
+  }
 }
 
-/**
- * Enables the outgoing media stream.
- * @function enableOutgoingStream
- */
-export function enableOutgoingStream() {
-  localMediaStream.getTracks().forEach((track) => {
-    track.enabled = true;
-  });
+export function toggleVideo(isEnabled) {
+  if (localMediaStream) {
+    localMediaStream.getVideoTracks().forEach((track) => {
+      track.enabled = isEnabled;
+    });
+    
+    // Update local UI
+    const videoEl = document.getElementById("local_video");
+    const placeholderEl = document.getElementById("local_placeholder");
+    if (videoEl && placeholderEl) {
+      videoEl.style.display = isEnabled ? "block" : "none";
+      placeholderEl.style.display = isEnabled ? "none" : "flex";
+    }
+
+    // Notify others
+    if (socket) {
+      socket.emit("user-toggle-video", isEnabled);
+    }
+  }
 }
 
 /**
@@ -209,17 +241,79 @@ export function enableOutgoingStream() {
  * @function createClientMediaElements
  * @param {string} _id - The ID of the client.
  */
-function createClientMediaElements(_id) {
+function createClientMediaElements(_id, username) {
+  const container = getVideoContainer();
+  if (!container) return;
+
+  const card = document.createElement("div");
+  card.id = `${_id}_card`;
+  card.style.position = "relative";
+  card.style.width = "100%";
+  card.style.height = "100%";
+  card.style.borderRadius = "12px";
+  card.style.overflow = "hidden";
+  card.style.backgroundColor = "#2d2d2d";
+  card.style.border = "2px solid #6b21a8"; // Purple border
+
   const videoEl = document.createElement("video");
   videoEl.id = `${_id}_video`;
   videoEl.autoplay = true;
   videoEl.playsInline = true;
-  videoEl.style.width = "300px";
-  videoEl.style.margin = "10px";
-  videoEl.style.borderRadius = "8px";
-  videoEl.style.border = "2px solid #6b21a8"; // Purple border
+  videoEl.style.width = "100%";
+  videoEl.style.height = "100%";
+  videoEl.style.objectFit = "cover";
   
-  getVideoContainer().appendChild(videoEl);
+  // Placeholder
+  const placeholder = document.createElement("div");
+  placeholder.id = `${_id}_placeholder`;
+  placeholder.style.position = "absolute";
+  placeholder.style.top = "0";
+  placeholder.style.left = "0";
+  placeholder.style.width = "100%";
+  placeholder.style.height = "100%";
+  placeholder.style.display = "none"; // Hidden by default until we know status? 
+  // Actually, default is video ON usually, but if they join muted... 
+  // For now assume ON, but if they toggle we switch.
+  // If we want to support "join muted", we need that info in payload.
+  // Let's assume ON for remote for now, or listen to event.
+  placeholder.style.display = "flex"; // Assume off initially? No, usually on.
+  // Wait, if I join and they are already muted, I won't know unless they send state.
+  // For this iteration, let's assume they are ON, unless we get a toggle.
+  // But the user said "al momento de ingresar... desactivado".
+  // So everyone joins deactivated. So default should be placeholder visible.
+  placeholder.style.display = "flex"; 
+  videoEl.style.display = "none";
+
+  placeholder.style.flexDirection = "column";
+  placeholder.style.justifyContent = "center";
+  placeholder.style.alignItems = "center";
+  placeholder.style.backgroundColor = "#1a1a1a";
+  placeholder.style.color = "white";
+  
+  const nameTag = document.createElement("div");
+  nameTag.innerText = username || "Usuario";
+  nameTag.style.fontSize = "1.5rem";
+  nameTag.style.fontWeight = "bold";
+  
+  placeholder.appendChild(nameTag);
+
+  // Name overlay for video
+  const overlay = document.createElement("div");
+  overlay.innerText = username || "Usuario";
+  overlay.style.position = "absolute";
+  overlay.style.bottom = "10px";
+  overlay.style.left = "10px";
+  overlay.style.color = "white";
+  overlay.style.backgroundColor = "rgba(0,0,0,0.5)";
+  overlay.style.padding = "4px 8px";
+  overlay.style.borderRadius = "4px";
+  overlay.style.fontSize = "0.8rem";
+
+  card.appendChild(videoEl);
+  card.appendChild(placeholder);
+  card.appendChild(overlay);
+  
+  container.appendChild(card);
 }
 
 /**
@@ -241,35 +335,30 @@ function updateClientMediaElements(_id, stream) {
  * @param {string} _id - The ID of the client.
  */
 function removeClientMediaElement(_id) {
-  const videoEl = document.getElementById(`${_id}_video`);
-  if (videoEl) {
-    videoEl.remove();
+  const card = document.getElementById(`${_id}_card`);
+  if (card) {
+    card.remove();
   }
 }
 
 function getVideoContainer() {
-  let container = document.getElementById("video-container");
-  if (!container) {
-    container = document.createElement("div");
-    container.id = "video-container";
-    container.style.display = "flex";
-    container.style.flexWrap = "wrap";
-    container.style.justifyContent = "center";
-    container.style.position = "fixed";
-    container.style.bottom = "20px";
-    container.style.left = "50%";
-    container.style.transform = "translateX(-50%)";
-    container.style.width = "90%";
-    container.style.zIndex = "1000";
-    container.style.gap = "10px";
-    container.style.pointerEvents = "none"; // Let clicks pass through if empty, but videos should be clickable? Actually videos don't need interaction usually.
-    // But if we want controls, we need pointerEvents auto on children.
-    document.body.appendChild(container);
-  }
-  return container;
+  return document.getElementById("video-grid");
 }
 
-function createLocalVideo(stream) {
+function createLocalVideo(stream, username) {
+  const container = getVideoContainer();
+  if (!container) return;
+
+  const card = document.createElement("div");
+  card.id = "local_card";
+  card.style.position = "relative";
+  card.style.width = "100%";
+  card.style.height = "100%";
+  card.style.borderRadius = "12px";
+  card.style.overflow = "hidden";
+  card.style.backgroundColor = "#2d2d2d";
+  card.style.border = "2px solid #22c55e"; // Green border
+
   const videoEl = document.createElement("video");
   videoEl.id = "local_video";
   videoEl.autoplay = true;
@@ -277,11 +366,50 @@ function createLocalVideo(stream) {
   videoEl.muted = true;
   videoEl.srcObject = stream;
   
-  videoEl.style.width = "300px";
-  videoEl.style.margin = "10px";
-  videoEl.style.borderRadius = "8px";
-  videoEl.style.border = "2px solid #22c55e"; // Green border
+  videoEl.style.width = "100%";
+  videoEl.style.height = "100%";
+  videoEl.style.objectFit = "cover";
   videoEl.style.transform = "scaleX(-1)"; // Mirror effect
+  
+  // Placeholder for local user
+  const placeholder = document.createElement("div");
+  placeholder.id = "local_placeholder";
+  placeholder.style.position = "absolute";
+  placeholder.style.top = "0";
+  placeholder.style.left = "0";
+  placeholder.style.width = "100%";
+  placeholder.style.height = "100%";
+  placeholder.style.display = "flex"; // Default disabled
+  videoEl.style.display = "none"; // Default disabled
 
-  getVideoContainer().appendChild(videoEl);
+  placeholder.style.flexDirection = "column";
+  placeholder.style.justifyContent = "center";
+  placeholder.style.alignItems = "center";
+  placeholder.style.backgroundColor = "#1a1a1a";
+  placeholder.style.color = "white";
+  
+  const nameTag = document.createElement("div");
+  nameTag.innerText = (username || "Tú") + " (Tú)";
+  nameTag.style.fontSize = "1.5rem";
+  nameTag.style.fontWeight = "bold";
+  
+  placeholder.appendChild(nameTag);
+
+  // Overlay
+  const overlay = document.createElement("div");
+  overlay.innerText = "Tú";
+  overlay.style.position = "absolute";
+  overlay.style.bottom = "10px";
+  overlay.style.left = "10px";
+  overlay.style.color = "white";
+  overlay.style.backgroundColor = "rgba(0,0,0,0.5)";
+  overlay.style.padding = "4px 8px";
+  overlay.style.borderRadius = "4px";
+  overlay.style.fontSize = "0.8rem";
+
+  card.appendChild(videoEl);
+  card.appendChild(placeholder);
+  card.appendChild(overlay);
+
+  container.appendChild(card);
 }
