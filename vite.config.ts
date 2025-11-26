@@ -19,4 +19,9 @@ export default defineConfig({
   optimizeDeps: {
     include: ["events", "util", "process"],
   },
+  server: {
+    host: true,        // <--- Permite conexiones externas
+    port: 5173,        // <--- Opcional (puede ser cualquier puerto)
+    strictPort: false, // <--- Opcional
+  },
 });

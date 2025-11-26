@@ -17,9 +17,13 @@ let localMediaStream = null;
  * @function init
  */
 export const initWebRTC = async () => {
+
   if (Peer.WEBRTC_SUPPORT) {
     try {
       localMediaStream = await getMedia();
+      console.log("Local media stream obtained.");
+      console.log(localMediaStream);
+      createLocalVideo(localMediaStream);
       initSocketConnection();
     } catch (error) {
       console.error("Failed to initialize WebRTC connection:", error);
@@ -37,7 +41,7 @@ export const initWebRTC = async () => {
  */
 async function getMedia() {
   try {
-    return await navigator.mediaDevices.getUserMedia({ audio: true });
+    return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
   } catch (err) {
     console.error("Failed to get user media:", err);
     throw err;
@@ -87,7 +91,7 @@ function handleNewUserConnected(theirId) {
  */
 function handleUserDisconnected(_id) {
   if (_id !== socket.id) {
-    removeClientAudioElement(_id);
+    removeClientMediaElement(_id);
     delete peers[_id];
   }
 }
@@ -204,15 +208,16 @@ export function enableOutgoingStream() {
  * @param {string} _id - The ID of the client.
  */
 function createClientMediaElements(_id) {
-  const audioEl = document.createElement("audio");
-  audioEl.id = `${_id}_audio`;
-  audioEl.controls = false;
-  audioEl.volume = 1;
-  document.body.appendChild(audioEl);
-
-  audioEl.addEventListener("loadeddata", () => {
-    audioEl.play();
-  });
+  const videoEl = document.createElement("video");
+  videoEl.id = `${_id}_video`;
+  videoEl.autoplay = true;
+  videoEl.playsInline = true;
+  videoEl.style.width = "300px";
+  videoEl.style.margin = "10px";
+  videoEl.style.borderRadius = "8px";
+  videoEl.style.border = "2px solid #6b21a8"; // Purple border
+  
+  getVideoContainer().appendChild(videoEl);
 }
 
 /**
@@ -222,9 +227,9 @@ function createClientMediaElements(_id) {
  * @param {MediaStream} stream - The new media stream.
  */
 function updateClientMediaElements(_id, stream) {
-  const audioEl = document.getElementById(`${_id}_audio`);
-  if (audioEl) {
-    audioEl.srcObject = new MediaStream([stream.getAudioTracks()[0]]);
+  const videoEl = document.getElementById(`${_id}_video`);
+  if (videoEl) {
+    videoEl.srcObject = stream;
   }
 }
 
@@ -233,9 +238,48 @@ function updateClientMediaElements(_id, stream) {
  * @function removeClientAudioElement
  * @param {string} _id - The ID of the client.
  */
-function removeClientAudioElement(_id) {
-  const audioEl = document.getElementById(`${_id}_audio`);
-  if (audioEl) {
-    audioEl.remove();
+function removeClientMediaElement(_id) {
+  const videoEl = document.getElementById(`${_id}_video`);
+  if (videoEl) {
+    videoEl.remove();
   }
+}
+
+function getVideoContainer() {
+  let container = document.getElementById("video-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "video-container";
+    container.style.display = "flex";
+    container.style.flexWrap = "wrap";
+    container.style.justifyContent = "center";
+    container.style.position = "fixed";
+    container.style.bottom = "20px";
+    container.style.left = "50%";
+    container.style.transform = "translateX(-50%)";
+    container.style.width = "90%";
+    container.style.zIndex = "1000";
+    container.style.gap = "10px";
+    container.style.pointerEvents = "none"; // Let clicks pass through if empty, but videos should be clickable? Actually videos don't need interaction usually.
+    // But if we want controls, we need pointerEvents auto on children.
+    document.body.appendChild(container);
+  }
+  return container;
+}
+
+function createLocalVideo(stream) {
+  const videoEl = document.createElement("video");
+  videoEl.id = "local_video";
+  videoEl.autoplay = true;
+  videoEl.playsInline = true;
+  videoEl.muted = true;
+  videoEl.srcObject = stream;
+  
+  videoEl.style.width = "300px";
+  videoEl.style.margin = "10px";
+  videoEl.style.borderRadius = "8px";
+  videoEl.style.border = "2px solid #22c55e"; // Green border
+  videoEl.style.transform = "scaleX(-1)"; // Mirror effect
+
+  getVideoContainer().appendChild(videoEl);
 }

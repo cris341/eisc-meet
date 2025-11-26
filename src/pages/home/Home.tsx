@@ -4,7 +4,7 @@ import Interaction from "./interaction/Interaction";
 const Home: React.FC = () => {
   return (
     <>
-      {/* <Chat /> */}
+      <Chat />
       <Interaction/>
     </>
   );

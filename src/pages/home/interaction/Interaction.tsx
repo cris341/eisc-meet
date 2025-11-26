@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { initWebRTC } from "../../../webrtc/webrtc";
+import { initWebRTC } from "../../../webrtc/webrtc.js";
 /**
  * Component for controlling voice input/output.
  * @returns {JSX.Element} The JSX.Element containing the voice control button.
@@ -13,6 +13,7 @@ export default function Interaction() {
     setIsSpeaking(true);
 
     if (callPeers) {
+      
       setCallPeers(false);
       initWebRTC();
     }
