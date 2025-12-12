@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import Chat from "./chat/Chat";
 import Interaction from "./interaction/Interaction";
 // @ts-ignore
-import { initWebRTC } from "../../webrtc/webrtc.js";
+import { initWebRTC, cleanupWebRTC } from "../../webrtc/webrtc.js";
 
 const Home: React.FC = () => {
   const [username, setUsername] = useState("");
@@ -12,6 +12,11 @@ const Home: React.FC = () => {
     if (isJoined) {
       initWebRTC(username);
     }
+    return () => {
+      if (isJoined) {
+        cleanupWebRTC();
+      }
+    };
   }, [isJoined, username]);
 
   const handleJoin = (e: React.FormEvent) => {
@@ -56,7 +61,7 @@ const Home: React.FC = () => {
   }
 
   return (
-    <div className=" flex flex-col bg-gray-100 dark:bg-gray-900 overflow-hidden">
+    <div className="flex flex-col bg-gray-100 dark:bg-gray-900 overflow-hidden">
       {/* Header / Nav could go here */}
       
       <div className="flex-1 flex flex-col lg:flex-row p-4 gap-4 overflow-hidden">
@@ -72,8 +77,12 @@ const Home: React.FC = () => {
             {/* Videos will be injected here by webrtc.js */}
           </div>
           
-          {/* Controls Bar */}0
-          <div className=" h-20  bg-white dark:bg-gray-800 rounded-xl shadow-lg md:flex items-center justify-center  border border-gray-200 dark:border-gray-70 ">
+          {/* Controls Bar */}
+          <div className="     md:h-20 md:bg-white md:dark:bg-gray-800 
+    md:rounded-xl md:shadow-lg md:flex md:items-center 
+    md:justify-center md:px-8 
+    md:border md:border-gray-200 md:dark:border-gray-700 
+    md:shrink-0">
             <Interaction />
           </div>
         </div>

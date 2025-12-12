@@ -8,7 +8,7 @@ body {
   @apply font-poppins;
 }
 
-.container-page > div:not(:has(form)) {
+.container-page>div:not(:has(form)) {
   @apply h-lvh flex flex-col gap-4 justify-center items-center;
 }
 
@@ -46,7 +46,7 @@ h2 {
   @apply bg-gradient-to-br from-violet-50 to-purple-50 dark:from-gray-900 dark:to-gray-800;
 }
 
-.container-page > div {
+.container-page>div {
   @apply bg-white dark:bg-gray-800 rounded-xl shadow-lg;
   @apply p-8 border border-gray-200 dark:border-gray-700;
   @apply w-full max-w-md;
@@ -57,7 +57,7 @@ h2 {
   @apply block text-sm font-medium text-gray-700 dark:text-gray-300;
 }
 
-.container-page > div > div:last-child > button {
+.container-page>div>div:last-child>button {
   @apply w-full mt-1 flex items-center justify-center gap-3;
   @apply bg-violet-600 hover:bg-violet-700 active:bg-violet-800;
   @apply text-white shadow-lg hover:shadow-xl;
@@ -66,10 +66,11 @@ h2 {
   @apply focus:outline-none focus:ring-4 focus:ring-violet-300 focus:ring-offset-2;
 }
 
-.container-page > div > div:last-child > button img {
+.container-page>div>div:last-child>button img {
   @apply w-6 h-6;
 }
 
-input, textarea {
-  @apply text-white;
+input,
+textarea {
+  @apply dark:text-white;
 }

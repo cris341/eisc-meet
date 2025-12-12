@@ -11,16 +11,33 @@ let socket = null;
 let peers = {};
 let localMediaStream = null;
 
+let currentSessionId = 0;
+let mediaPromiseChain = Promise.resolve();
+let onScreenShareChange = null;
+
 /**
  * Initializes the WebRTC connection if supported.
  * @async
- * @function init
+ * @function initWebRTC
  */
 export const initWebRTC = async (username) => {
   if (Peer.WEBRTC_SUPPORT) {
+    cleanupWebRTC(); // Ensure clean state
+    const mySessionId = ++currentSessionId;
+
     try {
-      localMediaStream = await getMedia();
-      console.log("Local media stream obtained.");
+      // Use sequential getMedia to avoid "Device in use" errors
+      const stream = await getMedia();
+      
+      // Check if this session is still valid
+      if (mySessionId !== currentSessionId) {
+          console.log("WebRTC initialization aborted: stale session");
+          stream.getTracks().forEach(track => track.stop());
+          return;
+      }
+
+      localMediaStream = stream;
+      console.log("Local media stream obtained:", localMediaStream.id);
       
       // Start with tracks disabled as per requirement
       localMediaStream.getAudioTracks().forEach(track => track.enabled = false);
@@ -36,6 +53,28 @@ export const initWebRTC = async (username) => {
   }
 };
 
+export function cleanupWebRTC() {
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+  }
+  if (localMediaStream) {
+    localMediaStream.getTracks().forEach(track => track.stop());
+    localMediaStream = null;
+  }
+  Object.values(peers).forEach(peer => {
+    if (peer.peerConnection) {
+      peer.peerConnection.destroy();
+    }
+  });
+  peers = {};
+  
+  const container = document.getElementById("video-grid");
+  if (container) {
+    container.innerHTML = ''; // Clear all videos
+  }
+}
+
 /**
  * Gets the user's media stream (audio only).
  * @async
@@ -43,12 +82,21 @@ export const initWebRTC = async (username) => {
  * @returns {Promise<MediaStream>} The user's media stream.
  */
 async function getMedia() {
-  try {
-    return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-  } catch (err) {
-    console.error("Failed to get user media:", err);
-    throw err;
-  }
+  // Chain the request to ensure we don't call getUserMedia in parallel
+  const currentPromise = mediaPromiseChain.then(async () => {
+      try {
+        return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      } catch (err) {
+        console.error("Failed to get user media:", err);
+        throw err;
+      }
+  });
+  
+  // Update the chain so next request waits for this one
+  // We catch errors so the chain doesn't break
+  mediaPromiseChain = currentPromise.catch(() => {});
+  
+  return currentPromise;
 }
 
 /**
@@ -218,6 +266,8 @@ export function toggleAudio(isEnabled) {
 export function toggleVideo(isEnabled) {
   if (localMediaStream) {
     localMediaStream.getVideoTracks().forEach((track) => {
+      // Don't disable if it's a screen share track, or handle it differently?
+      // For simplicity, just enable/disable.
       track.enabled = isEnabled;
     });
     
@@ -236,6 +286,108 @@ export function toggleVideo(isEnabled) {
   }
 }
 
+let wasVideoEnabledBeforeScreenShare = false;
+
+export async function startScreenShare() {
+  try {
+    const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    const screenTrack = screenStream.getVideoTracks()[0];
+
+    if (localMediaStream) {
+      const videoTrack = localMediaStream.getVideoTracks()[0];
+      
+      // Save current video state
+      wasVideoEnabledBeforeScreenShare = videoTrack.enabled;
+
+      // Replace track in local stream
+      localMediaStream.removeTrack(videoTrack);
+      localMediaStream.addTrack(screenTrack);
+
+      // Replace track in peer connections
+      Object.values(peers).forEach((peer) => {
+        if (peer.peerConnection) {
+          peer.peerConnection.replaceTrack(videoTrack, screenTrack, localMediaStream);
+        }
+      });
+
+      // Update local video element
+      const localVideo = document.getElementById("local_video");
+      if (localVideo) {
+        localVideo.srcObject = localMediaStream;
+        // Ensure it's visible
+        localVideo.style.display = "block";
+        // Remove mirror effect for screen share
+        localVideo.style.transform = "none";
+        
+        const placeholder = document.getElementById("local_placeholder");
+        if (placeholder) placeholder.style.display = "none";
+      }
+      
+      // Notify others we are "on" (even if we were off)
+      socket.emit("user-toggle-video", true);
+
+      // Handle when user stops sharing via browser UI
+      screenTrack.onended = () => {
+        stopScreenShare();
+      };
+    }
+  } catch (error) {
+    console.error("Error starting screen share:", error);
+  }
+}
+
+export async function stopScreenShare() {
+  try {
+    const userStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    const videoTrack = userStream.getVideoTracks()[0];
+
+    if (localMediaStream) {
+      const screenTrack = localMediaStream.getVideoTracks()[0];
+      
+      // Replace track in local stream
+      localMediaStream.removeTrack(screenTrack);
+      localMediaStream.addTrack(videoTrack);
+
+      // Restore video state
+      videoTrack.enabled = wasVideoEnabledBeforeScreenShare;
+
+      // Replace track in peer connections
+      Object.values(peers).forEach((peer) => {
+        if (peer.peerConnection) {
+          peer.peerConnection.replaceTrack(screenTrack, videoTrack, localMediaStream);
+        }
+      });
+      
+      // Stop the screen track explicitly if not already stopped
+      screenTrack.stop();
+
+      // Update local video element
+      const localVideo = document.getElementById("local_video");
+      const placeholder = document.getElementById("local_placeholder");
+
+      if (localVideo) {
+        localVideo.srcObject = localMediaStream;
+        // Restore mirror effect for webcam
+        localVideo.style.transform = "scaleX(-1)";
+        
+        // Update visibility based on restored state
+        if (wasVideoEnabledBeforeScreenShare) {
+            localVideo.style.display = "block";
+            if (placeholder) placeholder.style.display = "none";
+        } else {
+            localVideo.style.display = "none";
+            if (placeholder) placeholder.style.display = "flex";
+        }
+      }
+
+      // Notify others of restored state
+      socket.emit("user-toggle-video", wasVideoEnabledBeforeScreenShare);
+    }
+  } catch (error) {
+    console.error("Error stopping screen share:", error);
+  }
+}
+
 /**
  * Creates media elements for a client.
  * @function createClientMediaElements
@@ -247,6 +399,7 @@ function createClientMediaElements(_id, username, isVideoEnabled = false) {
 
   const card = document.createElement("div");
   card.id = `${_id}_card`;
+  card.classList.add("video-card");
   card.style.position = "relative";
   card.style.width = "100%";
   card.style.height = "100%";
@@ -349,6 +502,7 @@ function createLocalVideo(stream, username) {
 
   const card = document.createElement("div");
   card.id = "local_card";
+  card.classList.add("video-card");
   card.style.position = "relative";
   card.style.width = "100%";
   card.style.height = "100%";
